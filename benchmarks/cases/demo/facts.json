@@ -1,0 +1,12 @@
+{
+  "_comment": "Independently authored 'must-know-to-resume' facts. A fact is recovered from a text if ALL of its `requires` substrings appear (case-insensitive). These are written from the point of view of 'what a developer must know to resume this project', NOT copied from how threadline stores state.",
+  "facts": [
+    {"id": "auth-jwt-stateless", "requires": ["jwt", "stateless"], "note": "in-force decision: JWT, stateless"},
+    {"id": "db-postgres", "requires": ["postgres"], "note": "in-force decision: Postgres not MySQL"},
+    {"id": "bcrypt-cost-12", "requires": ["bcrypt", "12"], "note": "in-force decision: bcrypt cost factor 12"},
+    {"id": "loop-rate-limiting", "requires": ["rate limiting"], "note": "open loop: login rate limiting not done"},
+    {"id": "loop-email-verification", "requires": ["email verification"], "note": "open loop: email verification deferred"},
+    {"id": "trap-utcnow", "requires": ["utcnow"], "note": "known trap: naive datetime.utcnow() timezone bug"},
+    {"id": "caveat-admin-bypass", "requires": ["/admin", "bypass"], "note": "active caveat: /admin bypasses auth in dev"}
+  ]
+}

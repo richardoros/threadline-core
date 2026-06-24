@@ -1,0 +1,12 @@
+{
+  "_comment": "Facts are scattered across the transcript (head, middle, tail) on purpose: this is the realistic placement and the rebuttal to 'you hid them in the middle'. An equal-budget head or tail slice catches only the facts near that end.",
+  "facts": [
+    {"id": "orchestrator-airflow", "requires": ["airflow"], "note": "decision: Airflow, near start"},
+    {"id": "format-parquet", "requires": ["parquet"], "note": "decision: Parquet, near start"},
+    {"id": "dedup-event-id", "requires": ["dedup", "event_id"], "note": "decision: dedup on event_id, middle"},
+    {"id": "loop-backfill", "requires": ["backfill"], "note": "open loop: backfill, middle"},
+    {"id": "trap-naive-timestamp", "requires": ["naive", "partition"], "note": "trap: naive ts broke partitioning, middle"},
+    {"id": "loop-pii-scrub", "requires": ["pii", "scrub"], "note": "open loop: PII scrub, near end"},
+    {"id": "caveat-staging-lifecycle", "requires": ["staging bucket", "lifecycle"], "note": "caveat: no lifecycle policy, near end"}
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "_comment": "A long session (~12x the payload budget). Facts sit in one design block in the middle, surrounded by lots of normal session noise. The point: as a session grows, an equal-budget head/tail slice of the transcript becomes useless, while the payload stays constant.",
+  "facts": [
+    {"id": "state-zustand", "requires": ["zustand"], "note": "decision: Zustand not Redux"},
+    {"id": "router-tanstack", "requires": ["tanstack router"], "note": "decision: TanStack Router"},
+    {"id": "css-tailwind-v4", "requires": ["tailwind", "v4"], "note": "decision: Tailwind v4 + @theme"},
+    {"id": "loop-a11y-audit", "requires": ["accessibility audit"], "note": "open loop: a11y audit not done"},
+    {"id": "loop-i18n", "requires": ["i18n", "deferred"], "note": "open loop: i18n deferred"},
+    {"id": "trap-useeffect-fetch", "requires": ["useeffect", "fetch"], "note": "trap: fetch in useEffect waterfalls"},
+    {"id": "caveat-ssr-window", "requires": ["window", "ssr"], "note": "caveat: window access breaks SSR"}
+  ]
+}
