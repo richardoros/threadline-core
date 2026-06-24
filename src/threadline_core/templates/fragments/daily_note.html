@@ -1,0 +1,100 @@
+{# Daily note fragment — NOT a full HTML page.
+   Rendered by services/daily.py and embedded into dashboard views or API responses.
+
+   Variables expected:
+     date       (str)  — ISO date string, e.g. "2026-06-10"
+     projects   (list) — list of project summary dicts, each with:
+       .key              (str)        — project slug
+       .sessions         (list[str])  — session event summaries
+       .decisions        (list[str])  — decision statements
+       .open_loops_added (list[str])  — open loop descriptions added this day
+       .open_loops_resolved (list[str]) — open loop descriptions resolved this day
+       .verification     (list[str])  — verification_result summaries
+       .blockers         (list[str])  — blocker event summaries
+       .other_activity   (list[str])  — remaining event summaries
+     no_activity (bool) — True when there are no events for the date
+#}
+<article data-type="daily-note" data-date="{{ date }}">
+  <header>
+    <h1>Daily Note — {{ date }}</h1>
+  </header>
+  {% if no_activity %}
+  <p data-purpose="no-activity">No agent activity recorded.</p>
+  {% else %}
+  {% for proj in projects %}
+  <section data-project="{{ proj.key }}">
+    <h2>{{ proj.key }}</h2>
+    {% if proj.sessions %}
+    <div data-purpose="sessions">
+      <h3>Sessions</h3>
+      <ul>
+        {% for item in proj.sessions %}
+        <li>{{ item }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+    {% if proj.decisions %}
+    <div data-purpose="decisions">
+      <h3>Decisions</h3>
+      <ul>
+        {% for item in proj.decisions %}
+        <li>{{ item }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+    {% if proj.open_loops_added %}
+    <div data-purpose="open-loops-added">
+      <h3>Open loops added</h3>
+      <ul>
+        {% for item in proj.open_loops_added %}
+        <li>{{ item }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+    {% if proj.open_loops_resolved %}
+    <div data-purpose="open-loops-resolved">
+      <h3>Open loops resolved</h3>
+      <ul>
+        {% for item in proj.open_loops_resolved %}
+        <li>{{ item }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+    {% if proj.verification %}
+    <div data-purpose="verification">
+      <h3>Verification</h3>
+      <ul>
+        {% for item in proj.verification %}
+        <li>{{ item }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+    {% if proj.blockers %}
+    <div data-purpose="blockers">
+      <h3>Blockers</h3>
+      <ul>
+        {% for item in proj.blockers %}
+        <li>{{ item }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+    {% if proj.other_activity %}
+    <div data-purpose="activity">
+      <h3>Activity</h3>
+      <ul>
+        {% for item in proj.other_activity %}
+        <li>{{ item }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+  </section>
+  {% endfor %}
+  {% endif %}
+</article>

@@ -1,0 +1,28 @@
+{
+  "event_type": "checkpoint",
+  "project_key": "acme-api",
+  "agent": {
+    "name": "claude_code",
+    "type": "coding_agent"
+  },
+  "summary": "Added rate limiting to the public API gateway.",
+  "details": {
+    "files_changed": [
+      "src/gateway/limiter.py",
+      "tests/test_limiter.py"
+    ],
+    "decisions": [
+      "Use a token-bucket limiter over a fixed-window counter."
+    ],
+    "open_loops": [
+      "Add a burst-traffic load test for the limiter."
+    ],
+    "verification": [
+      "pytest tests/test_limiter.py"
+    ]
+  },
+  "privacy": {
+    "contains_secrets": false,
+    "allow_cloud_processing": false
+  }
+}
