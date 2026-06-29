@@ -34,7 +34,33 @@ from threadline_core.services.findings import (
     CRITICAL_GAP_FLOOR,
     FINDING_KIND,
 )
+from threadline_core.services.progress import is_incomplete_summary
 from threadline_core.utils.time import iso_now
+
+
+async def latest_substantive_session(
+    db: AsyncSession, project_key: str
+) -> AgentSession | None:
+    """The latest ENDED session that carries a real handoff summary, or None.
+
+    "The last session" should be the work an agent would resume — not an empty
+    *active* bootstrap session (opened by the SessionStart hook but not yet
+    finished) nor an auto-reaped one. We scan ended sessions newest-first and
+    return the first substantive one; None is an explicit, honest fallback when
+    no completed, summarized session exists yet. Shared by ``get_project_state``
+    and the project detail API so both surfaces agree.
+    """
+    ended_newest_first = (await db.execute(
+        select(AgentSession)
+        .where(
+            AgentSession.project_key == project_key,
+            AgentSession.status == "ended",
+        )
+        .order_by(AgentSession.started_at.desc())
+    )).scalars().all()
+    return next(
+        (s for s in ended_newest_first if not is_incomplete_summary(s.summary)), None
+    )
 
 # How many recent verification summaries to surface in project state.
 _RECENT_VERIFICATIONS = 5
@@ -147,13 +173,8 @@ async def get_project_state(db: AsyncSession, project_key: str) -> ProjectState:
     if project is None:
         raise LookupError(f"Project not found: {project_key!r}")
 
-    # Most recent session
-    last_session: AgentSession | None = (await db.execute(
-        select(AgentSession)
-        .where(AgentSession.project_key == project_key)
-        .order_by(AgentSession.started_at.desc())
-        .limit(1)
-    )).scalars().first()
+    # Latest ENDED substantive session — not an empty active bootstrap session.
+    last_session = await latest_substantive_session(db, project_key)
 
     # Open loops — oldest-first (longest-waiting work floats up)
     open_loops = list((await db.execute(

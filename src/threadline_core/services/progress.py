@@ -24,8 +24,13 @@ from threadline_core.utils.time import iso_now
 PROGRESS_WINDOW_DAYS = 7
 
 
-def _is_incomplete_summary(summary: str | None) -> bool:
-    """An ended session with no real handoff summary (incl. auto-reaped ones)."""
+def is_incomplete_summary(summary: str | None) -> bool:
+    """An ended session with no real handoff summary (incl. auto-reaped ones).
+
+    Single source of truth for "is this session a real handoff?" — shared with
+    ``project_state.latest_substantive_session`` so the progress count and the
+    "last session" selector can never disagree about what counts as substantive.
+    """
     return not summary or summary.startswith("(auto-reaped")
 
 
@@ -128,7 +133,7 @@ async def project_progress(
         )
     )).scalars().all()
     ended_sessions = len(ended_rows)
-    incomplete_sessions = sum(1 for s in ended_rows if _is_incomplete_summary(s))
+    incomplete_sessions = sum(1 for s in ended_rows if is_incomplete_summary(s))
 
     return ProjectProgress(
         project=project_key,

@@ -11,7 +11,8 @@ GET /api/projects
 GET /api/projects/{key}
     Return the full detail view for one project.  Includes the project's own
     fields, live counts of open loops and active decisions, the total number of
-    agent sessions, and the most recent session (by started_at).
+    agent sessions, and the latest ended substantive session (the work to
+    resume — an empty active bootstrap session is skipped).
 
     Returns 404 if the key is not found.
 
@@ -32,6 +33,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from threadline_core.api.deps import get_db
 from threadline_core.models import AgentEvent, AgentSession, Decision, OpenLoop, Project
+from threadline_core.services.project_state import latest_substantive_session
 
 router = APIRouter()
 
@@ -140,15 +142,8 @@ async def get_project(
         )
     ) or 0
 
-    # Most recent session by started_at
-    last_session_row = (
-        await db.execute(
-            select(AgentSession)
-            .where(AgentSession.project_key == key)
-            .order_by(AgentSession.started_at.desc())
-            .limit(1)
-        )
-    ).scalars().first()
+    # Latest ENDED substantive session — not an empty active bootstrap session.
+    last_session_row = await latest_substantive_session(db, key)
 
     last_session = None
     if last_session_row is not None:
