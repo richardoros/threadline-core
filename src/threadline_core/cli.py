@@ -625,6 +625,59 @@ def _loop_dict(loop: object) -> dict[str, Any]:
     }
 
 
+@loop_app.command("get")
+def loop_get(
+    loop_id: str = typer.Argument(..., help="Open-loop id to fetch."),
+) -> None:
+    """Fetch one open loop by id."""
+    from sqlalchemy import select
+
+    from threadline_core.models import OpenLoop
+
+    settings = Settings()
+
+    async def _go() -> None:
+        async with _with_db(settings) as db:
+            loop = (await db.execute(
+                select(OpenLoop).where(OpenLoop.id == loop_id)
+            )).scalar_one_or_none()
+            if loop is None:
+                typer.echo("Error: loop not found", err=True)
+                raise typer.Exit(code=1)
+            typer.echo(json.dumps(_loop_dict(loop), indent=2))
+
+    _run(_go())
+
+
+@loop_app.command("list")
+def loop_list(
+    project: str = typer.Argument(..., help="Project key (e.g. apply)."),
+    claimable: bool = typer.Option(False, "--claimable", help="Only loops with no owner."),
+    lane: str = typer.Option(None, "--lane", help="Only loops tagged with this lane."),
+) -> None:
+    """List open loops for a project (optionally claimable-only / lane-filtered)."""
+    from sqlalchemy import select
+
+    from threadline_core.models import OpenLoop
+
+    settings = Settings()
+
+    async def _go() -> None:
+        async with _with_db(settings) as db:
+            stmt = select(OpenLoop).where(
+                OpenLoop.project_key == project, OpenLoop.status == "open"
+            )
+            if claimable:
+                stmt = stmt.where(OpenLoop.owner.is_(None))
+            if lane is not None:
+                stmt = stmt.where(OpenLoop.lane == lane)
+            stmt = stmt.order_by(OpenLoop.created_at.asc())
+            rows = list((await db.execute(stmt)).scalars().all())
+            typer.echo(json.dumps([_loop_dict(r) for r in rows], indent=2))
+
+    _run(_go())
+
+
 @loop_app.command("assign")
 def loop_assign(
     loop_id: str = typer.Argument(..., help="Open-loop id to claim."),
