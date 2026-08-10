@@ -222,28 +222,50 @@ def build_server(settings: Settings | None = None) -> FastMCP:
     # -----------------------------------------------------------------------
 
     @mcp.tool()
-    async def get_open_loops(project_key: str) -> list[dict[str, Any]]:
-        """Return all open loops for a project, oldest first.
+    async def get_open_loops(
+        project_key: str,
+        owner: str | None = None,
+        lane: str | None = None,
+        claimable: bool | None = None,
+    ) -> list[dict[str, Any]]:
+        """Return open loops for a project, oldest first.
 
         Open loops are deferred threads — things noticed but not finished.
         Oldest-first because the longest-waiting item is most likely blocking.
 
+        Filters (all optional, combinable):
+        - ``owner``: only loops claimed by this owner (pass ``"unassigned"``
+          to get loops with no owner — the claimable set)
+        - ``lane``: only loops tagged with this lane (e.g. ``retention-b``)
+        - ``claimable``: True = owner is NULL; False = owner is set
+
         Returns
         -------
         list of dicts with keys: ``id``, ``description``, ``project_key``,
-        ``status``, ``created_at``, ``updated_at``.
+        ``status``, ``owner``, ``lane``, ``created_at``, ``updated_at``.
         """
         await _ensure_initialized()
+        stmt = select(OpenLoop).where(
+            OpenLoop.project_key == project_key,
+            OpenLoop.status == "open",
+        )
+        if owner == "unassigned" or claimable is True:
+            stmt = stmt.where(OpenLoop.owner.is_(None))
+        elif owner is not None:
+            stmt = stmt.where(OpenLoop.owner == owner)
+        elif claimable is False:
+            stmt = stmt.where(OpenLoop.owner.is_not(None))
+        if lane is not None:
+            stmt = stmt.where(OpenLoop.lane == lane)
+        stmt = stmt.order_by(OpenLoop.created_at.asc())
+
         async with factory() as db:
-            rows = list((await db.execute(
-                select(OpenLoop)
-                .where(OpenLoop.project_key == project_key, OpenLoop.status == "open")
-                .order_by(OpenLoop.created_at.asc())
-            )).scalars().all())
+            rows = list((await db.execute(stmt)).scalars().all())
         return [
             {
                 "id": r.id, "description": r.description,
                 "project_key": r.project_key, "status": r.status,
+                "owner": r.owner, "lane": r.lane,
                 "created_at": r.created_at, "updated_at": r.updated_at,
             }
             for r in rows
@@ -267,6 +289,30 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         async with factory() as db:
             result = await ingest_svc.resolve_open_loop(
                 db, loop_id, evidence_refs=evidence_refs or [], operator_confirmed=False
+            )
+        return result
+
+    @mcp.tool()
+    async def assign_open_loop(
+        loop_id: str,
+        owner: str,
+        lane: str | None = None,
+    ) -> dict[str, Any]:
+        """Claim an open loop for an owner — FIRST CLAIM WINS.
+
+        The foreman and every agent must claim a loop BEFORE touching files.
+        A loop is claimable while owner is unset; the first claim wins.
+        Re-claiming by the same owner is a no-op. Claiming someone else's
+        loop raises an error and returns the current owner in the message.
+
+        Returns
+        -------
+        dict with keys: ``id``, ``status``, ``owner``, ``lane``.
+        """
+        await _ensure_initialized()
+        async with factory() as db:
+            result = await ingest_svc.claim_open_loop(
+                db, loop_id, owner, lane=lane, actor="api"
             )
         return result
 

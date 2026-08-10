@@ -67,6 +67,31 @@ async def init_db(engine: AsyncEngine) -> None:
         await conn.run_sync(Base.metadata.create_all)
         await conn.execute(text(_FTS_DDL))
         await _migrate_agent_sessions(conn)
+        await _migrate_open_loops(conn)
+
+
+async def _migrate_open_loops(conn) -> None:
+    """Add any new columns to ``open_loops`` that are missing from the live DB.
+
+    Same idempotent PRAGMA-driven pattern as ``_migrate_agent_sessions``.
+    ``owner`` and ``lane`` are the mechanical-claim columns the foreman uses:
+    a loop is claimable when ``owner`` is NULL, and claimed when ``owner`` is
+    set (first claim wins). ``lane`` records the allocation lane
+    (e.g. ``retention-b``) so the foreman can filter mechanically.
+    """
+    _NEW_COLUMNS: dict[str, str] = {
+        "owner": "TEXT",
+        "lane": "TEXT",
+    }
+
+    result = await conn.execute(text("PRAGMA table_info(open_loops)"))
+    existing_columns = {row[1] for row in result.fetchall()}
+
+    for col_name, col_type in _NEW_COLUMNS.items():
+        if col_name not in existing_columns:
+            await conn.execute(
+                text(f"ALTER TABLE open_loops ADD COLUMN {col_name} {col_type}")
+            )
 
 
 async def _migrate_agent_sessions(conn) -> None:

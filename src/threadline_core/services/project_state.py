@@ -119,6 +119,8 @@ def _loop_row(loop: OpenLoop) -> dict[str, Any]:
         "description": loop.description,
         "project_key": loop.project_key,
         "status": loop.status,
+        "owner": loop.owner,
+        "lane": loop.lane,
         "created_at": loop.created_at,
         "updated_at": loop.updated_at,
     }

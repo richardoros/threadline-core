@@ -30,7 +30,7 @@ import json
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import AsyncGenerator
+from typing import Any, AsyncGenerator
 
 import typer
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -609,6 +609,48 @@ def export(
 # ---------------------------------------------------------------------------
 
 
+def _loop_dict(loop: object) -> dict[str, Any]:
+    """Serialize an OpenLoop ORM object for CLI output."""
+    return {
+        "id": getattr(loop, "id"),
+        "project_key": getattr(loop, "project_key"),
+        "description": getattr(loop, "description"),
+        "status": getattr(loop, "status"),
+        "owner": getattr(loop, "owner"),
+        "lane": getattr(loop, "lane"),
+        "source_event_id": getattr(loop, "source_event_id"),
+        "resolved_at": getattr(loop, "resolved_at"),
+        "created_at": getattr(loop, "created_at"),
+        "updated_at": getattr(loop, "updated_at"),
+    }
+
+
+@loop_app.command("assign")
+def loop_assign(
+    loop_id: str = typer.Argument(..., help="Open-loop id to claim."),
+    owner: str = typer.Argument(..., help="Owner (agent name) claiming the loop."),
+    lane: str = typer.Option(None, "--lane", help="Lane tag (e.g. retention-b)."),
+) -> None:
+    """Claim an open loop — first claim wins; re-claim by same owner is a no-op."""
+    from threadline_core.services import ingest as ingest_svc
+
+    settings = Settings()
+
+    async def _go() -> None:
+        async with _with_db(settings) as db:
+            try:
+                loop = await ingest_svc.claim_open_loop(
+                    db, loop_id, owner, lane=lane, actor="operator:cli"
+                )
+            except (LookupError, ValueError) as e:
+                typer.echo(f"Error: {e}", err=True)
+                raise typer.Exit(code=1) from e
+            await db.commit()
+            typer.echo(json.dumps(_loop_dict(loop), indent=2))
+
+    _run(_go())
+
+
 @loop_app.command("resolve")
 def loop_resolve(
     loop_id: str = typer.Argument(..., help="Open-loop id to resolve."),
@@ -635,7 +677,7 @@ def loop_resolve(
                 typer.echo(f"Error: {e}", err=True)
                 raise typer.Exit(code=1) from e
             await db.commit()
-            typer.echo(json.dumps(loop, indent=2))
+            typer.echo(json.dumps(_loop_dict(loop), indent=2))
 
     _run(_go())
 

@@ -679,6 +679,56 @@ async def resolve_open_loop(
     return loop
 
 
+async def claim_open_loop(
+    db: AsyncSession,
+    loop_id: str,
+    owner: str,
+    *,
+    lane: str | None = None,
+    actor: str = "api",
+) -> OpenLoop:
+    """Claim an open loop for an owner — FIRST CLAIM WINS.
+
+    Mechanical lane-ownership primitive used by the foreman and by any agent
+    before it touches files. A loop is claimable while ``owner`` is NULL;
+    the first successful claim records the owner (and optional lane) and
+    returns the loop. A second claim by a different owner raises
+    ``ValueError`` with NO mutation — the original owner is returned so the
+    caller can see who holds it.
+
+    Idempotent for the SAME owner: re-claiming your own loop is a no-op that
+    returns the loop unchanged (no duplicate audit row).
+
+    Raises ``LookupError`` if ``loop_id`` is unknown, ``ValueError`` if
+    already claimed by another owner.
+    """
+    loop = await db.get(OpenLoop, loop_id)
+    if loop is None:
+        raise LookupError(f"OpenLoop not found: {loop_id!r}")
+    if loop.status == "resolved":
+        raise ValueError(f"OpenLoop {loop_id!r} is already resolved")
+
+    if loop.owner is not None and loop.owner != owner:
+        raise ValueError(
+            f"OpenLoop {loop_id!r} already claimed by {loop.owner!r}"
+        )
+
+    now = iso_now()
+    first_claim = loop.owner is None
+    if first_claim:
+        loop.owner = owner
+        if lane is not None:
+            loop.lane = lane
+        loop.updated_at = now
+        db.add(AuditLog(
+            actor=actor,
+            action="claim_open_loop",
+            detail=f"loop {loop_id} owner={owner} lane={lane or ''}",
+        ))
+        await db.commit()
+    return loop
+
+
 async def supersede_decision(
     db: AsyncSession,
     old_id: str,

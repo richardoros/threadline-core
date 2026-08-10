@@ -176,6 +176,8 @@ class OpenLoop(Base):
     resolved_at: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[str] = mapped_column(String, nullable=False, default=iso_now)
     updated_at: Mapped[str] = mapped_column(String, nullable=False, default=iso_now)
+    owner: Mapped[str | None] = mapped_column(String, nullable=True)
+    lane: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 class ContinuationPrompt(Base):
