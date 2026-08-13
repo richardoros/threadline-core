@@ -32,6 +32,8 @@ Most MCP memory servers store and retrieve text. threadline-core tracks **state*
 
 Because it stores structured state rather than raw transcripts, every stored fact is precise, auditable, and stripped of noise. That's not a missing feature; it's the design.
 
+**Where it sits.** Repo-intelligence tools (Repowise and friends) remember the *repository* — the dependency graph, the git history, the code health. threadline-core remembers the *work* — what was decided, what's still open, what's a known trap, and who is doing what. It is not a codebase indexer and doesn't try to be. And with loop claiming and lanes, it goes beyond recording the work to **coordinating** it across agents.
+
 ---
 
 ## Five-minute installation
@@ -229,7 +231,7 @@ Your work history is not a product. It stays where you put it.
 
 ---
 
-## The 16-tool public API
+## The 17-tool public API
 
 These tools form the stable public surface, supported across patch and minor versions.
 
@@ -239,7 +241,8 @@ These tools form the stable public surface, supported across patch and minor ver
 | `end_session` | Close the session with a summary |
 | `log_agent_event` | Ingest a checkpoint, decision, blocker, or note |
 | `get_project_state` | Retrieve structured project state |
-| `get_open_loops` | List all open (unresolved) loops |
+| `get_open_loops` | List open loops — optionally filtered by `owner`, `lane`, or `claimable` |
+| `assign_open_loop` | Claim a loop for an owner/lane (first-claim-wins) |
 | `mark_open_loop_resolved` | Resolve a loop (requires admissible evidence) |
 | `get_decisions` | List active decisions |
 | `get_decision` | Get one decision with full detail |
@@ -257,6 +260,15 @@ These tools form the stable public surface, supported across patch and minor ver
 `mark_open_loop_resolved` and `confirm_finding` require an `evidence_refs` list pointing to independently verifiable records in the same project. An agent cannot self-confirm its own findings.
 
 If you receive a `ValueError` from these tools without evidence, that is the gate working correctly, not a bug.
+
+### Loop ownership and claiming (foreman primitives)
+
+Open loops can carry an **`owner`** and a **`lane`**, so multiple agents (or an agent plus a human) can divide work without colliding on the same files:
+
+- `assign_open_loop(loop_id, owner, lane?)` claims a loop. Claiming is **first-claim-wins**: a loop already owned by someone else is not silently reassigned.
+- `get_open_loops(project_key, owner?, lane?, claimable?)` filters the feed — e.g. `claimable=true` returns only unowned loops an agent can pick up, and `lane="phase-3"` returns one lane's work.
+
+This is the primitive a **foreman** builds on: enumerate the claimable loops, claim one, work it, then close it with evidence. The same semantics are exposed on the CLI (`threadline-core loop list --claimable`, `threadline-core loop get`, `threadline-core loop assign`).
 
 ### Experimental
 
@@ -299,7 +311,7 @@ threadline-core loop         # Open-loop operator actions
 
 | Area | What's notable |
 |------|----------------|
-| **MCP protocol design** | Full MCP 2024-11-05 stdio server (FastMCP); 16 tools with typed schemas, evidence-gated state transitions, and forward-compatible protocol versioning |
+| **MCP protocol design** | Full MCP 2024-11-05 stdio server (FastMCP); 17 tools with typed schemas, evidence-gated state transitions, and forward-compatible protocol versioning |
 | **AI tooling architecture** | Designed around how agents actually work: session lifecycle, context continuity across sessions, and anti-patterns (self-certification, premature closure) enforced in the service layer |
 | **Python async backend** | FastAPI + SQLAlchemy 2.0 async + aiosqlite; clean async/sync boundary with a single-commit ingest pipeline |
 | **Protocol design** | `protocol.py` is import-isolated (stdlib + Pydantic only) by design, destined to be extracted as a standalone `threadline-protocol` package; forward-compatibility via `extra="ignore"` throughout |
@@ -324,10 +336,33 @@ It helped its developer and coding agents continue the project across many sessi
 
 ---
 
+## Benchmarks
+
+`benchmarks/` ships **resume-bench**, a reproducible check of the core claim: at an *equal token budget*, does the structured resume payload recover the load-bearing facts better than re-reading the raw session transcript?
+
+On the committed synthetic cases, the structured payload recovers **7/7** load-bearing facts while an equal-budget slice of the raw transcript recovers **0–3 of 7** (you need the *full* transcript — 4–7× the budget — to match it). Run it yourself:
+
+```bash
+uv run --with tiktoken python benchmarks/resume_bench.py benchmarks/cases
+```
+
+Read this honestly: it measures **structural fact density at a fixed budget**, *not* task success and *not* superiority over a high-quality LLM-authored summary. The payload is built from those facts, so it is expected to score high; the finding is how little the raw transcript recovers at the same budget. See [benchmarks/README.md](benchmarks/README.md) for the method and full caveats.
+
+---
+
+## Roadmap
+
+- **Foreman / coordination maturity** — richer loop ownership, lanes, and claim lifecycle so teams of agents divide work safely.
+- **Repo-signal providers** — ingest change/impact signals from local git and external code-intelligence tools to enrich continuity (not to become a repo indexer).
+- **Benchmark hardening** — more cases and projects, and a blinded comparison against LLM-authored summaries before any "better than X" claim.
+- **Threadline (hosted product)** — the managed experience built on this core; local data and exports are never gated to force an upgrade.
+
+---
+
 ## threadline-core vs Threadline
 
 **threadline-core** (this repository, Apache 2.0) is the open substrate:
-- MCP server with the 16-tool public API
+- MCP server with the 17-tool public API
 - HTTP REST API for connector hooks
 - Event ingestion and lifecycle (sessions, decisions, loops, findings)
 - SQLite persistence and FTS5 search
